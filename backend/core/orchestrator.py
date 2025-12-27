@@ -147,18 +147,25 @@ class Orchestrator:
         # Step 6: Buy Links (Conditional on risk level)
         logger.info("Step 6: Running Buy Link Agent...")
         risk_level = report['data'].get('impact', {}).get('risk_level', 'low')
-        
+
         if risk_level == 'high':
             report['data']['buy_guidance'] = {
                 "purchase_recommended": False,
                 "purchase_reason": "High risk detected. Purchase links are disabled for safety.",
-                "buy_options": []
+                "buy_links": []
             }
             report['steps_completed'].append("buy_link_skipped_safety")
             logger.info("Buy links skipped due to high risk")
         else:
             try:
-                buy_data = self.buy_agent.run(rec_data)
+                buy_request = {
+                    "product_name": product_name,
+                    "product_category": product_category,
+                    "brand": report['data'].get('knowledge', {}).get('brand') or report['data'].get('product_summary', {}).get('brand'),
+                    "recommendations": rec_data,
+                    "impact": impact_data,
+                }
+                buy_data = self.buy_agent.run(buy_request)
                 if "error" not in buy_data:
                     report['data']['buy_guidance'] = buy_data
                     report['steps_completed'].append("buy_link")
@@ -166,9 +173,9 @@ class Orchestrator:
                     logger.warning(f"Buy link error: {buy_data['error']}")
                     report['errors'].append(f"Buy: {buy_data['error']}")
                     report['data']['buy_guidance'] = {
-                        "purchase_recommended": True,
-                        "purchase_reason": "General product, purchase is fine.",
-                        "buy_options": []
+                        "purchase_recommended": False,
+                        "purchase_reason": "Could not generate trustworthy direct purchase links.",
+                        "buy_links": []
                     }
             except Exception as e:
                 logger.error(f"Buy link error: {e}")

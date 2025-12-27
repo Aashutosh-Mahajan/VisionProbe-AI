@@ -34,7 +34,7 @@ The MVP focuses entirely on the "Scan & Learn" loop.
 4.  **Result View**:
     *   Top: Product Image + Verified Name.
     *   Middle: 2-Column Layout (Facts vs. Risks).
-    *   Bottom: Alternatives & Purchase Guidance.
+    *   Bottom: Alternatives & Purchase Links.
 5.  **Action**: User clicks an alternative or a "Buy" link, OR "Scan Another".
 
 ## 4. Non-Goals (MVP)

@@ -228,35 +228,87 @@ class RecommendationAgent(BaseAgent):
 
 
 class BuyLinkAgent(BaseAgent):
-    """Agent 6: Ethical purchase guidance."""
+    """Agent 6: Purchase links provider."""
     
     def _get_system_prompt(self):
                 return """
                 You are the Buy Link Agent.
-                Task: Provide ethical purchase guidance and search suggestions.
 
-                Respond ONLY with JSON matching this schema:
+                ROLE:
+                You are responsible for finding and returning REAL, DIRECT product purchase links (actual product pages, not search pages) for the given product.
+
+                OBJECTIVE:
+                Provide verified, platform-specific product URLs that directly open the product detail page (PDP) on trusted e-commerce platforms.
+
+                RESPONSE FORMAT:
+                Respond ONLY with valid JSON matching this schema:
+
                 {
-                    "purchase_recommended": boolean,          // false if high risk or major concerns
-                    "purchase_reason": string,                 // concise rationale
-                    "buy_options": [
-                        {
-                            "product_type": string,               // what to search for
-                            "search_suggestion": string           // search-ready phrase
-                        }
-                    ]
+                  "purchase_recommended": boolean,
+                  "purchase_reason": string,
+                  "buy_links": [
+                    {
+                      "platform": string,
+                      "link": string,
+                      "description": string
+                    }
+                  ]
                 }
 
-                Guidance:
-                - If risk_level from impact analysis is high, set purchase_recommended to false and keep buy_options empty.
-                - Provide neutral, non-branded search terms.
-                - Keep suggestions short and action-oriented.
+                STRICT RULES (MANDATORY):
+                1. DO NOT return generic search URLs (❌ /s?k=, /search, query links).
+                2. Each link MUST be a direct product page URL (PDP) that:
+                   - Contains a product identifier such as:
+                     - Amazon ASIN (/dp/ or /gp/product/)
+                     - Flipkart PID (/p/)
+                     - eBay item ID (/itm/)
+                     - Official store product slug
+                3. Links must be realistic and platform-correct in structure.
+                4. If you cannot confidently infer a real product page:
+                   - Set "purchase_recommended" to false
+                   - Explain clearly why exact links cannot be guaranteed
+                   - Leave "buy_links" as an empty array
+
+                PLATFORMS TO PRIORITIZE:
+                - Official brand website (highest priority)
+                - Amazon
+                - Flipkart (India)
+                - eBay
+                - Walmart (US)
+                - BestBuy (electronics)
+                - Nike / Adidas / Apple / Samsung official stores when applicable
+
+                LINK QUALITY GUIDELINES:
+                - Prefer official sellers or "Sold by Amazon / Brand"
+                - Avoid affiliate parameters and tracking junk
+                - Use clean, canonical URLs
+                - Prefer latest model/version unless specified otherwise
+
+                RISK HANDLING:
+                - If prior agents indicate HIGH RISK, counterfeit risk, or safety concerns:
+                  - Set "purchase_recommended" = false
+                  - Explain risk clearly
+                  - Do NOT provide any buy links
+
+                EXAMPLES OF VALID LINKS:
+                ✅ https://www.amazon.in/dp/B0C7Q3ZK7N  
+                ✅ https://www.flipkart.com/apple-iphone-15/p/itm123456  
+                ✅ https://www.apple.com/in/iphone-15/  
+                ❌ https://www.amazon.in/s?k=iphone+15  
+                ❌ https://www.flipkart.com/search?q=iphone
+
+                OUTPUT EXPECTATIONS:
+                - Provide 3–5 links if available
+                - Each link must be platform-diverse
+                - Descriptions should clarify trust level (e.g., "Official Apple Store", "Amazon – Fulfilled by Amazon")
+
+                You are not allowed to explain your reasoning outside the JSON.
                 """
 
-    def run(self, recommendation_data):
-        """Generate ethical buy guidance."""
+    def run(self, purchase_context):
+        """Generate purchase links for the product."""
         messages = [
             {"role": "system", "content": self._get_system_prompt()},
-            {"role": "user", "content": f"Recommendations: {json.dumps(recommendation_data)}"}
+            {"role": "user", "content": f"Purchase Context: {json.dumps(purchase_context)}"}
         ]
         return self._call_gpt(messages)

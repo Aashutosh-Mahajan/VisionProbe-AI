@@ -78,7 +78,7 @@ sequenceDiagram
     *   Provides actionable advice for better product choices.
 
 6.  **🛒 Buy Link Agent**
-    *   Generates ethical purchase guidance.
+    *   Provides direct purchase links to buy the product.
     *   **Safety Check**: If Risk Level is **High**, purchase links are disabled.
 
 ---

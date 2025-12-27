@@ -47,7 +47,7 @@ const ReportView = ({ data }) => {
         { id: 'risk', label: 'Risk Assessment', icon: ShieldAlert },
         { id: 'intelligence', label: 'Intelligence', icon: BrainCircuit },
         { id: 'alternatives', label: 'Alternatives', icon: GitCompare },
-        { id: 'purchase', label: 'Purchase Guidance', icon: ShoppingCart },
+        { id: 'purchase', label: 'Purchase Links', icon: ShoppingCart },
     ];
 
     const renderContent = () => {
@@ -132,20 +132,47 @@ const ReportView = ({ data }) => {
             case 'purchase':
                 return (
                     <div className="space-y-6 animate-in fade-in duration-500">
-                        <h3 className="text-2xl font-bold mb-4 text-white">Purchase Guidance</h3>
-                        <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                            <p className="text-lg leading-relaxed text-white/80">{buy_guidance?.recommendation}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                <div className="text-sm text-white/50 mb-1">Estimated Price</div>
-                                <div className="text-xl font-semibold text-white">{buy_guidance?.price_analysis?.estimated_price_range}</div>
+                        <h3 className="text-2xl font-bold mb-4 text-white">Purchase Links</h3>
+                        {buy_guidance?.purchase_recommended === false ? (
+                            <div className="p-6 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                                <p className="text-lg leading-relaxed text-rose-200">{buy_guidance?.purchase_reason || "Purchase not recommended due to safety concerns."}</p>
                             </div>
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                <div className="text-sm text-white/50 mb-1">Value Verdict</div>
-                                <div className="text-xl font-semibold text-blue-400">{buy_guidance?.price_analysis?.value_verdict}</div>
-                            </div>
-                        </div>
+                        ) : (
+                            <>
+                                {buy_guidance?.purchase_reason && (
+                                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                        <p className="text-white/80">{buy_guidance.purchase_reason}</p>
+                                    </div>
+                                )}
+                                {(!buy_guidance?.buy_links || buy_guidance.buy_links.length === 0) && (
+                                    <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                                        <p className="text-white/70">No direct purchase links are available yet. Try again or check back shortly.</p>
+                                    </div>
+                                )}
+                                <div className="space-y-4">
+                                    <h4 className="text-lg font-semibold text-white/90">Available Purchase Options:</h4>
+                                    {buy_guidance?.buy_links?.map((link, i) => (
+                                        <a 
+                                            key={i}
+                                            href={link.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block p-5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-blue-500/30 transition-all group"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-lg text-blue-400 group-hover:text-blue-300 mb-1">
+                                                        {link.platform}
+                                                    </div>
+                                                    <p className="text-sm text-white/60">{link.description}</p>
+                                                </div>
+                                                <ShoppingCart className="w-5 h-5 text-white/40 group-hover:text-blue-400 transition-colors" />
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                 );
             default:
