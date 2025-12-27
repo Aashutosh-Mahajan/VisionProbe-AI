@@ -307,8 +307,25 @@ class BuyLinkAgent(BaseAgent):
 
     def run(self, purchase_context):
         """Generate purchase links for the product."""
-        messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {"role": "user", "content": f"Purchase Context: {json.dumps(purchase_context)}"}
-        ]
-        return self._call_gpt(messages)
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        if not self.client:
+            raise ValueError("OpenAI client not initialized")
+
+        try:
+            response = self.client.responses.create(
+                model=self.model,
+                tools=[{"type": "web_search"}],
+                input=[
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": f"Purchase Context: {json.dumps(purchase_context)}"},
+                ],
+            )
+            content = response.output_text
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error (buy links): {e}")
+            raise ValueError(f"Failed to parse buy link response as JSON: {e}")
+        except Exception as e:
+            logger.error(f"OpenAI web_search error: {e}")
+            raise
