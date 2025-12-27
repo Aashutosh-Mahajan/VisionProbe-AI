@@ -1,4 +1,3 @@
-gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
 # Visual Product Intelligence Platform (VPIP)
 
 Formal documentation for the Visual Product Intelligence Platform: a decision-intelligence system that transforms a single product image into a structured, explainable Product Intelligence Report with health, environmental, and ethical guidance.
