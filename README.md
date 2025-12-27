@@ -11,7 +11,7 @@
 VisionProbe relies on a sophisticated **Orchestrator Pattern**, managing a pipeline of specialized AI agents.
 
 ### Agentic Workflow
-The system processes an image through a sequential chain of 6 agents, powered by **OpenAI GPT-4o**:
+The system processes an image through a sequential chain of 6 agents, powered by **OpenAI GPT-5.1**:
 
 ```mermaid
 sequenceDiagram
