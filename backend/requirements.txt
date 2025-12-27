@@ -1,0 +1,25 @@
+# Core Django
+django>=5.0
+djangorestframework>=3.14
+django-cors-headers>=4.0
+djangorestframework-simplejwt>=5.3
+
+# Database
+psycopg2-binary
+dj-database-url
+
+# Image Processing
+pillow
+
+# AI Integration
+openai>=1.0
+
+# Environment
+python-dotenv
+
+# HTTP Client
+requests
+
+# Production Server
+gunicorn
+whitenoise
