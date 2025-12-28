@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: django-backend
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && gunicorn config.wsgi:application
