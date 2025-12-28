@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Info,
     ShieldAlert,
@@ -25,24 +25,72 @@ const GlassCard = ({ children, className }) => (
 );
 
 const ReportView = ({ data }) => {
+    // All hooks MUST be declared at the top before any conditional logic or early returns
     const [activeTab, setActiveTab] = useState('knowledge');
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const [isChatting, setIsChatting] = useState(false);
 
-    if (!data || !data.report || !data.report.data) return null;
+    console.log('[ReportView] Received data:', data);
+    console.log('[ReportView] data?.report:', data?.report);
 
-    const report = data.report.data;
-    const { product_summary, knowledge, usage, impact, recommendations, buy_guidance } = report;
+    // Normalize report payloads so the UI renders even if the backend returns a stringified report
+    // or a slightly different shape (e.g., report already flattened without a `data` wrapper).
+    const normalizeReport = (rawReport) => {
+        if (!rawReport) return null;
 
-    if (data.report.status === "aborted") {
+        // If DRF serialized the JSONField as a string, try to parse it.
+        if (typeof rawReport === 'string') {
+            try {
+                const parsed = JSON.parse(rawReport);
+                return normalizeReport(parsed);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // If the payload already looks like the inner `data` block, wrap it.
+        if (!rawReport.data && (rawReport.product_summary || rawReport.knowledge || rawReport.impact)) {
+            return {
+                status: rawReport.status || 'complete',
+                data: rawReport,
+                steps_completed: rawReport.steps_completed || [],
+            };
+        }
+
+        return rawReport.data ? rawReport : null;
+    };
+
+    const normalizedReport = normalizeReport(data?.report);
+    console.log('[ReportView] normalizedReport:', normalizedReport);
+    
+    const report = normalizedReport?.data;
+    console.log('[ReportView] report.data:', report);
+    const { product_summary, knowledge, usage, impact, recommendations, buy_guidance } = report || {};
+    const canonicalUrls = report?.input_urls || [];
+
+    const resetKey = `${product_summary?.product_name || ''}-${canonicalUrls.join('|')}-${normalizedReport?.status || ''}`;
+
+    useEffect(() => {
+        setActiveTab('knowledge');
+        setChatMessages([]);
+        setChatInput('');
+    }, [resetKey]);
+
+    // Early returns AFTER all hooks
+    if (!data || !normalizedReport) {
+        console.log('[ReportView] Returning null - data:', !!data, 'normalizedReport:', !!normalizedReport);
+        return null;
+    }
+
+    if (normalizedReport.status === "aborted") {
         return (
             <GlassCard className="max-w-2xl mx-auto mt-12 p-8 text-center space-y-4 border-amber-500/30 bg-amber-950/20">
                 <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto border border-amber-500/20">
                     <AlertTriangle className="w-6 h-6 text-amber-500" />
                 </div>
                 <h2 className="text-xl font-semibold text-amber-100">Analysis Stopped</h2>
-                <p className="text-white/60">{data.report.confidence_notice}</p>
+                <p className="text-white/60">{normalizedReport.confidence_notice}</p>
             </GlassCard>
         );
     }
@@ -65,7 +113,7 @@ const ReportView = ({ data }) => {
         buy_guidance,
         web_context: report?.web_context,
         input_urls: report?.input_urls,
-        disclaimer: data.report?.disclaimer,
+        disclaimer: normalizedReport?.disclaimer,
     };
 
     const sendChat = async () => {
@@ -318,6 +366,30 @@ const ReportView = ({ data }) => {
                     </div>
                 </GlassCard>
             </div>
+
+                {canonicalUrls.length > 0 && (
+                    <GlassCard className="mt-6 px-6 py-5 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs uppercase tracking-widest text-white/50">Analyzed URLs</p>
+                                <h3 className="text-lg font-semibold text-white">Clean links used for the report</h3>
+                            </div>
+                        </div>
+                        <div className="space-y-2 text-sm text-white/70">
+                            {canonicalUrls.map((url, idx) => (
+                                <a
+                                    key={`${url}-${idx}`}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block truncate text-white/70 hover:text-white"
+                                >
+                                    {url}
+                                </a>
+                            ))}
+                        </div>
+                    </GlassCard>
+                )}
 
             {/* Bottom Section: Split View */}
             <GlassCard className="flex-1 flex flex-col md:flex-row min-h-[500px]">

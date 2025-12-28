@@ -1,10 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { analyzeImage, checkHealth } from '../api';
 import UploadZone from '../components/UploadZone.jsx';
 import ReportView from '../components/ReportView.jsx';
 import { ScanLine, RefreshCw, Activity, LogOut, User, ChevronDown, Settings, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { authClient } from '../lib/auth';
+
+const TRACKING_PARAM_KEYS = new Set([
+  'fbclid',
+  'gclid',
+  'mkt_tok',
+  'mc_cid',
+  'mc_eid',
+  'ref_src',
+  'ref',
+  'scid',
+  'msclkid',
+  'dclid',
+  'yclid',
+  'spm',
+  'affid',
+  'trackingid'
+]);
+
+const TRACKING_PARAM_PREFIXES = [
+  'utm_',
+  'utm-',
+  'ref_',
+  'trk_',
+  'ga_',
+  'fb_',
+  'mc_',
+  'sc_',
+  'amp_'
+];
+
+const cleanProductUrl = (rawUrl) => {
+  if (!rawUrl) return null;
+  let candidate = rawUrl.trim();
+  if (!candidate) return null;
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+  try {
+    const normalized = new URL(candidate);
+    normalized.hash = '';
+    Array.from(normalized.searchParams.keys()).forEach((key) => {
+      const lowerKey = key.toLowerCase();
+      if (
+        TRACKING_PARAM_KEYS.has(lowerKey) ||
+        TRACKING_PARAM_PREFIXES.some((prefix) => lowerKey.startsWith(prefix))
+      ) {
+        normalized.searchParams.delete(key);
+      }
+    });
+
+    const sanitized = normalized.toString();
+    return sanitized.endsWith('?') ? sanitized.slice(0, -1) : sanitized;
+  } catch {
+    return candidate;
+  }
+};
+
+const parseProductUrls = (text) => {
+  if (!text) return [];
+  const rawList = text
+    .split(/\r?\n|,/) 
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const cleaned = [];
+  for (const entry of rawList) {
+    if (!entry) continue;
+    const sanitized = cleanProductUrl(entry);
+    if (!sanitized || seen.has(sanitized)) continue;
+    seen.add(sanitized);
+    cleaned.push(sanitized);
+  }
+
+  return cleaned;
+};
 
 const Dashboard = () => {
   const [data, setData] = useState(null);
@@ -16,6 +92,8 @@ const Dashboard = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  const sanitizedPreviewUrls = useMemo(() => parseProductUrls(productUrlsText), [productUrlsText]);
 
   useEffect(() => {
     // Get user from Neon Auth session
@@ -34,32 +112,9 @@ const Dashboard = () => {
     const checkBackend = async () => {
       const health = await checkHealth();
       setBackendStatus(health.status === 'ok' ? 'online' : 'offline');
-
-                    {error && (
-                      <div className="w-full max-w-xl text-sm text-rose-100 bg-rose-500/20 border border-rose-500/40 rounded-xl px-4 py-3 shadow-lg backdrop-blur">
-                        {error}
-                      </div>
-                    )}
     };
     checkBackend();
   }, [navigate]);
-
-  const parseProductUrls = (text) => {
-    if (!text) return [];
-    // Only split on newlines and commas, not spaces (URLs can have encoded spaces)
-    const urls = text
-      .split(/\r?\n|,/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    
-    // Auto-prepend https:// if missing
-    return urls.map(url => {
-      if (!/^https?:\/\//i.test(url)) {
-        return 'https://' + url;
-      }
-      return url;
-    });
-  };
 
   const handleFileSelected = (file) => {
     setSelectedFile(file);
@@ -68,7 +123,7 @@ const Dashboard = () => {
 
   const handleAnalyze = async () => {
     console.log('[Dashboard] handleAnalyze triggered');
-    const productUrls = parseProductUrls(productUrlsText);
+    const productUrls = sanitizedPreviewUrls;
     const hasUrls = productUrls.length > 0;
     const hasImage = !!selectedFile;
     
@@ -91,7 +146,10 @@ const Dashboard = () => {
     try {
       console.log('[Dashboard] Calling analyzeImage API...');
       const result = await analyzeImage(selectedFile, { productUrls });
-      console.log('[Dashboard] Analysis complete, setting data');
+      console.log('[Dashboard] Analysis complete, result:', result);
+      console.log('[Dashboard] result.data:', result.data);
+      console.log('[Dashboard] result.data.report:', result.data?.report);
+      console.log('[Dashboard] Setting data to:', result.data);
       setData(result.data);
     } catch (err) {
       console.error('[Dashboard] Analysis failed:', err);
@@ -268,6 +326,26 @@ const Dashboard = () => {
                   <p className="mt-2 text-xs text-white/50">
                     Enter product page URLs (one per line). http:// prefix optional.
                   </p>
+                  {sanitizedPreviewUrls.length > 0 && (
+                    <div className="mt-3 text-xs text-white/60">
+                      <p className="text-[11px] font-semibold text-white/70 mb-1">
+                        Canonical URLs used for analysis:
+                      </p>
+                      <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                        {sanitizedPreviewUrls.map((url) => (
+                          <a
+                            key={url}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block text-[11px] text-white/60 truncate hover:text-white hover:underline decoration-dotted underline-offset-4"
+                          >
+                            {url}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <UploadZone
                   onFileSelected={handleFileSelected}

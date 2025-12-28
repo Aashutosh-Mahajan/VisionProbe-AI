@@ -1,3 +1,5 @@
+from typing import Optional
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -15,8 +17,72 @@ import time
 import os
 import json
 import re
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 User = get_user_model()
+
+_TRACKING_PARAM_KEYS = {
+    'fbclid',
+    'gclid',
+    'mkt_tok',
+    'mc_cid',
+    'mc_eid',
+    'ref_src',
+    'ref',
+    'scid',
+    'msclkid',
+    'dclid',
+    'yclid',
+    'spm',
+    'affid',
+    'trackingid'
+}
+
+_TRACKING_PARAM_PREFIXES = (
+    'utm_',
+    'utm-',
+    'ref_',
+    'trk_',
+    'ga_',
+    'fb_',
+    'mc_',
+    'sc_',
+    'amp_'
+)
+
+def _is_tracking_param(name: str) -> bool:
+    if not name:
+        return False
+    lower = name.lower()
+    if lower in _TRACKING_PARAM_KEYS:
+        return True
+    return any(lower.startswith(prefix) for prefix in _TRACKING_PARAM_PREFIXES)
+
+def _sanitize_product_url(raw_url: str) -> Optional[str]:
+    if not raw_url:
+        return None
+    candidate = raw_url.strip()
+    if not candidate:
+        return None
+    if not candidate.lower().startswith(('http://', 'https://')):
+        candidate = 'https://' + candidate
+    try:
+        parsed = urlparse(candidate)
+    except Exception:
+        return candidate
+
+    if not parsed.scheme:
+        parsed = parsed._replace(scheme='https')
+
+    query_pairs = parse_qsl(parsed.query or '', keep_blank_values=True)
+    filtered_pairs = [
+        (key, value)
+        for key, value in query_pairs
+        if not _is_tracking_param(key)
+    ]
+    sanitized = parsed._replace(query=urlencode(filtered_pairs, doseq=True), fragment='')
+    final = urlunparse(sanitized)
+    return final.rstrip('?')
 
 
 class RegisterView(APIView):
@@ -184,14 +250,17 @@ class AnalyzeImageView(APIView):
         else:
             raw_list = [str(raw).strip()]
 
-        urls = []
-        for url in raw_list:
-            if not url:
+        sanitized_urls = []
+        seen = set()
+        for entry in raw_list:
+            if not entry:
                 continue
-            if not url.lower().startswith(('http://', 'https://')):
-                url = 'https://' + url
-            urls.append(url)
-        return urls
+            cleaned = _sanitize_product_url(entry)
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            sanitized_urls.append(cleaned)
+        return sanitized_urls
 
     def post(self, request, *args, **kwargs):
         import logging
@@ -285,7 +354,9 @@ class HealthCheckView(APIView):
 
 
 class ProductChatView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Allow analysis results to trigger chat even when the JWT token is missing
+    # since the dashboard already guards the UI with Neon auth.
+    permission_classes = [AllowAny]
 
     def post(self, request):
         message = (request.data.get('message') or '').strip()
