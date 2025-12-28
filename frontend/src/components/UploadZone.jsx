@@ -7,6 +7,7 @@ const cn = (...inputs) => twMerge(clsx(inputs));
 
 const UploadZone = ({ onFileSelected, isAnalyzing, error }) => {
     const [isDragOver, setIsDragOver] = useState(false);
+    const [selectedFileName, setSelectedFileName] = useState(null);
 
     const handleDragOver = useCallback((e) => {
         e.preventDefault();
@@ -23,6 +24,7 @@ const UploadZone = ({ onFileSelected, isAnalyzing, error }) => {
         setIsDragOver(false);
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
+            setSelectedFileName(files[0].name);
             onFileSelected(files[0]);
         }
     }, [onFileSelected]);
@@ -30,6 +32,7 @@ const UploadZone = ({ onFileSelected, isAnalyzing, error }) => {
     const handleFileInput = useCallback((e) => {
         const files = e.target.files;
         if (files && files.length > 0) {
+            setSelectedFileName(files[0].name);
             onFileSelected(files[0]);
         }
     }, [onFileSelected]);
@@ -75,18 +78,18 @@ const UploadZone = ({ onFileSelected, isAnalyzing, error }) => {
 
                     <div className="space-y-3 max-w-md">
                         <h3 className="text-xl font-bold text-white tracking-tight drop-shadow-md">
-                            {isAnalyzing ? "Analyzing Product..." : "Upload Product Image"}
+                            {selectedFileName ? "Image Selected" : "Upload Product Image"}
                         </h3>
                         <p className="text-white/60 text-base font-light leading-relaxed">
-                            {isAnalyzing
-                                ? "Our AI agents are processing visual data to generate your intelligence report."
+                            {selectedFileName 
+                                ? selectedFileName
                                 : "Drag and drop your image here, or click to browse. Supports high-res JPEG & PNG."}
                         </p>
                     </div>
                     
                     {!isAnalyzing && (
                         <div className="px-6 py-2.5 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-white/80 group-hover:bg-white/15 group-hover:text-white group-hover:border-white/20 transition-all shadow-lg backdrop-blur-sm">
-                            Select File
+                            {selectedFileName ? "Change File" : "Select File"}
                         </div>
                     )}
                 </div>

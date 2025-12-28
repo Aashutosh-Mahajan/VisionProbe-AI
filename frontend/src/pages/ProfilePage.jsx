@@ -1,9 +1,23 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, MapPin, Camera } from 'lucide-react';
+import { authClient } from '../lib/auth';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const res = await authClient.getSession();
+                if (res?.data?.user) setUser(res.data.user);
+            } catch (err) {
+                console.error('Failed to load session for profile:', err);
+            }
+        };
+        load();
+    }, []);
 
   return (
     <div className="min-h-screen relative flex flex-col text-foreground overflow-x-hidden">
@@ -38,16 +52,20 @@ const ProfilePage = () => {
                     {/* Profile Header */}
                     <div className="flex flex-col md:flex-row items-center gap-8 mb-10">
                         <div className="relative group cursor-pointer">
-                            <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-2xl ring-4 ring-white/10">
-                                <span className="text-4xl font-bold text-white">JD</span>
-                            </div>
+                                                        <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-2xl ring-4 ring-white/10">
+                                                                <span className="text-4xl font-bold text-white">{(() => {
+                                                                    const name = user?.user_metadata?.full_name || user?.name || user?.email || '';
+                                                                    if (!name) return 'U';
+                                                                    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+                                                                })()}</span>
+                                                        </div>
                             <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Camera className="w-8 h-8 text-white" />
                             </div>
                         </div>
                         <div className="text-center md:text-left">
-                            <h2 className="text-2xl font-bold text-white mb-1">John Doe</h2>
-                            <p className="text-white/60 mb-4">Product Manager at TechCorp</p>
+                            <h2 className="text-2xl font-bold text-white mb-1">{user?.user_metadata?.full_name || user?.name || (user?.email ? user.email.split('@')[0] : 'User')}</h2>
+                            <p className="text-white/60 mb-4">{user?.email || 'No email provided'}</p>
                             <div className="flex flex-wrap justify-center md:justify-start gap-3">
                                 <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs border border-emerald-500/30">Pro Plan</span>
                                 <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs border border-blue-500/30">Verified</span>
@@ -64,7 +82,8 @@ const ProfilePage = () => {
                                     <User className="absolute left-3 top-3 w-4 h-4 text-white/40" />
                                     <input 
                                         type="text" 
-                                        defaultValue="John Doe"
+                                        value={user?.user_metadata?.full_name || user?.name || ''}
+                                        onChange={(e) => setUser(prev => ({...prev, user_metadata: {...(prev?.user_metadata||{}), full_name: e.target.value}}))}
                                         className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:bg-white/10 transition-all"
                                     />
                                 </div>
@@ -75,7 +94,8 @@ const ProfilePage = () => {
                                     <Mail className="absolute left-3 top-3 w-4 h-4 text-white/40" />
                                     <input 
                                         type="email" 
-                                        defaultValue="john.doe@example.com"
+                                        value={user?.email || ''}
+                                        onChange={(e) => setUser(prev => ({...prev, email: e.target.value}))}
                                         className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:bg-white/10 transition-all"
                                     />
                                 </div>
@@ -89,7 +109,8 @@ const ProfilePage = () => {
                                     <Phone className="absolute left-3 top-3 w-4 h-4 text-white/40" />
                                     <input 
                                         type="tel" 
-                                        defaultValue="+1 (555) 123-4567"
+                                        value={user?.user_metadata?.phone || ''}
+                                        onChange={(e) => setUser(prev => ({...prev, user_metadata: {...(prev?.user_metadata||{}), phone: e.target.value}}))}
                                         className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:bg-white/10 transition-all"
                                     />
                                 </div>
@@ -100,7 +121,8 @@ const ProfilePage = () => {
                                     <MapPin className="absolute left-3 top-3 w-4 h-4 text-white/40" />
                                     <input 
                                         type="text" 
-                                        defaultValue="San Francisco, CA"
+                                        value={user?.user_metadata?.location || ''}
+                                        onChange={(e) => setUser(prev => ({...prev, user_metadata: {...(prev?.user_metadata||{}), location: e.target.value}}))}
                                         className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:bg-white/10 transition-all"
                                     />
                                 </div>

@@ -5,6 +5,8 @@ import logging
 from openai import OpenAI
 from django.conf import settings
 
+from .web_extract import summarize_product_urls
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,6 +49,46 @@ class BaseAgent:
             logger.error(f"OpenAI API error: {e}")
             raise
 
+    def _call_gpt_text(self, messages):
+        """Make a GPT API call that returns plain text."""
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        if not self.client:
+            raise ValueError("OpenAI client not initialized")
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0.2,
+                max_completion_tokens=600,
+            )
+            return (response.choices[0].message.content or '').strip()
+        except Exception as e:
+            logger.error(f"OpenAI API error (text): {e}")
+            raise
+
+
+class ProductChatAgent(BaseAgent):
+    """Chat agent: answer user questions using the current report context."""
+
+    def _get_system_prompt(self):
+        return (
+            "You are VisionProbe AI Chat Assistant. "
+            "Help the user understand the product. "
+            "Use the provided report context and web context when relevant. "
+            "Be concise, factual, and avoid medical/legal/financial advice. "
+            "If info is missing, say what you don't know and suggest what to verify."
+        )
+
+    def run(self, message: str, report_context):
+        messages = [
+            {"role": "system", "content": self._get_system_prompt()},
+            {"role": "user", "content": f"Report context (JSON): {json.dumps(report_context)[:12000]}"},
+            {"role": "user", "content": message},
+        ]
+        return self._call_gpt_text(messages)
+
 
 class VisualIdentificationAgent(BaseAgent):
     """Agent 1: Identify product from image."""
@@ -72,8 +114,69 @@ class VisualIdentificationAgent(BaseAgent):
                 - If non-product or ambiguous, use "Unknown" and confidence <= 0.3.
                 """
 
-    def run(self, image_path_or_url):
-        """Identify product from image path or URL."""
+    def _web_context_from_urls(self, product_urls):
+        if not product_urls:
+            return None
+
+        # Preferred path: OpenAI web_search tool (same pattern as BuyLinkAgent)
+        if self.client and self.api_key:
+            try:
+                response = self.client.responses.create(
+                    model=self.model,
+                    tools=[{"type": "web_search"}],
+                    input=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a web research helper. Extract factual product signals from the given URLs. "
+                                "Return a short, non-marketing summary including: likely product name, brand (if visible), and any price you can find. "
+                                "If the URLs do not contain product details, say so."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": "URLs:\n" + "\n".join(product_urls),
+                        },
+                    ],
+                )
+                text = (response.output_text or '').strip()
+                if text:
+                    return {"method": "openai_web_search", "text": text, "urls": list(product_urls)}
+            except Exception as e:
+                logger.info("Agent1 web_search failed; falling back to requests parsing: %s", e)
+
+        # Fallback: lightweight local extraction
+        try:
+            summary = summarize_product_urls(product_urls)
+            return {"method": "requests_extract", **summary}
+        except Exception as e:
+            logger.info("Agent1 requests_extract failed: %s", e)
+            # Fallback: at least pass through URLs so downstream can attempt inference
+            return {"method": "urls_only", "text": "Requests extract failed; using URLs only", "urls": list(product_urls)}
+
+    def run(self, image_path_or_url, product_urls=None):
+        """Identify product from image, URLs, or both. Combines all available data sources."""
+        product_urls = product_urls or []
+        web_context = self._web_context_from_urls(product_urls)
+
+        # Ensure we always have some web_context when URLs are provided, even if fetch/search fails
+        if product_urls and not web_context:
+            web_context = {"method": "urls_only", "text": "Using raw URLs as context; page fetch/web_search unavailable", "urls": list(product_urls)}
+
+        # Case 1: Only URLs provided (no image)
+        if not image_path_or_url:
+            # URL-only flow: always attempt identification from web_context (never fall back to "no image")
+            messages = [
+                {"role": "system", "content": self._get_system_prompt()},
+                {"role": "user", "content": f"Identify the product from these URLs / web signals. Work with what is available; if data is sparse, make the best evidence-based call and keep confidence calibrated.\n\nContext:\n{json.dumps(web_context)[:5000]}\n\nReturn product_name, category, brand, confidence (0.4-0.7 for URL-only), and 2-6 visual_clues summarizing web evidence."}
+            ]
+            result = self._call_gpt(messages)
+            if isinstance(result, dict):
+                result["_web_context"] = web_context
+                result["visual_clues"] = result.get("visual_clues", []) + ["Analyzed from product URLs only"]
+            return result
+
+        # Case 2: Image provided (with or without URLs)
         if os.path.isfile(image_path_or_url):
             with open(image_path_or_url, "rb") as image_file:
                 base64_image = base64.b64encode(image_file.read()).decode('utf-8')
@@ -81,12 +184,20 @@ class VisualIdentificationAgent(BaseAgent):
         else:
             image_url = image_path_or_url
 
+        # Build prompt that combines image + URLs when both available
+        text_prompt = "Identify this product from the image."
+        
+        if product_urls and web_context:
+            text_prompt += f"\n\nADDITIONAL CONTEXT from user-provided URLs:\n{json.dumps(web_context)[:5000]}\n\nUse this web data to cross-validate and enrich your image-based identification. If the image and web data conflict, prioritize the image but note the discrepancy."
+        elif product_urls:
+            text_prompt += f"\n\nUser also provided these product URLs (for reference):\n" + "\n".join(product_urls)
+
         messages = [
             {"role": "system", "content": self._get_system_prompt()},
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Identify this product."},
+                    {"type": "text", "text": text_prompt},
                     {
                         "type": "image_url",
                         "image_url": {"url": image_url, "detail": "high"},
@@ -94,7 +205,10 @@ class VisualIdentificationAgent(BaseAgent):
                 ],
             },
         ]
-        return self._call_gpt(messages)
+        result = self._call_gpt(messages)
+        if isinstance(result, dict) and web_context:
+            result["_web_context"] = web_context
+        return result
 
 
 class KnowledgeEnrichmentAgent(BaseAgent):

@@ -5,13 +5,15 @@ from .views import (
     RegisterView,
     LoginView,
     DemoLoginView,
-    ProfileView
+    ProfileView,
+    ProductChatView
 )
 
 urlpatterns = [
     # Analysis
     path('analyze/', AnalyzeImageView.as_view(), name='analyze_image'),
     path('health/', HealthCheckView.as_view(), name='health_check'),
+    path('chat/', ProductChatView.as_view(), name='product_chat'),
     
     # Authentication
     path('auth/register/', RegisterView.as_view(), name='register'),

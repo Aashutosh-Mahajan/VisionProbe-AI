@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -9,8 +9,12 @@ from PIL import Image
 from .models import UploadedImage
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer
 from .orchestrator import Orchestrator
+from .web_extract import fetch_url_html, extract_main_image_from_html
+from .agents import ProductChatAgent
 import time
 import os
+import json
+import re
 
 User = get_user_model()
 
@@ -150,42 +154,108 @@ class ProfileView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 class AnalyzeImageView(APIView):
-    parser_classes = (MultiPartParser, FormParser)
+    permission_classes = [AllowAny]  # Auth handled by Neon Auth on frontend
+    parser_classes = (MultiPartParser, FormParser, JSONParser)  # Support both FormData and JSON
+
+    def _parse_product_urls(self, raw):
+        if not raw:
+            return []
+        
+        # Already a list (from JSON parser)
+        if isinstance(raw, (list, tuple)):
+            raw_list = [str(u).strip() for u in raw if str(u).strip()]
+        # String (from FormData) - try to parse as JSON first
+        elif isinstance(raw, str):
+            raw_list = []
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    raw_list = [str(u).strip() for u in parsed if str(u).strip()]
+            except Exception:
+                pass
+
+            if not raw_list:
+                # Fallback: split on newlines or commas only (not spaces - URLs have params)
+                raw_list = [p.strip() for p in re.split(r"\r?\n|,", raw) if p.strip()]
+
+            # Ultimate fallback: treat the entire raw as one URL
+            if not raw_list:
+                raw_list = [raw.strip()]
+        else:
+            raw_list = [str(raw).strip()]
+
+        urls = []
+        for url in raw_list:
+            if not url:
+                continue
+            if not url.lower().startswith(('http://', 'https://')):
+                url = 'https://' + url
+            urls.append(url)
+        return urls
 
     def post(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[ANALYZE] Request received: content_type={request.content_type}, has_image={'image' in request.data}, data_keys={list(request.data.keys())}")
+        
         start_time = time.time()
+
+        # Optional: product URLs provided by user
+        product_urls = self._parse_product_urls(request.data.get('product_urls'))
+        logger.info(f"[ANALYZE] Parsed {len(product_urls)} product URLs")
         
-        # 1. Validate Image Upload
+        # 1. Validate Image Upload (optional if URLs provided)
         image_file = request.data.get('image')
-        if not image_file:
-            return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+        if not image_file and not product_urls:
+            logger.warning("[ANALYZE] No image or URLs provided")
+            return Response({"error": "Provide an image or product URLs"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Security Check: Size (Max 5MB)
-        if image_file.size > 5 * 1024 * 1024:
-             return Response({"error": "Image too large. Max size is 5MB."}, status=status.HTTP_400_BAD_REQUEST)
+        # Security Check: Size (Max 5MB) - only if image provided
+        if image_file:
+            if image_file.size > 5 * 1024 * 1024:
+                return Response({"error": "Image too large. Max size is 5MB."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Security Check: Integrity & Format
-        try:
-            img = Image.open(image_file)
-            img.verify() # Checks for corruption
-            if img.format not in ['JPEG', 'PNG', 'WEBP']:
-                 return Response({"error": "Unsupported format. Use JPEG, PNG, or WEBP."}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception:
-             return Response({"error": "Invalid image file."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Reset file pointer after verify()
-        image_file.seek(0)
+            # Security Check: Integrity & Format
+            try:
+                img = Image.open(image_file)
+                img.verify() # Checks for corruption
+                if img.format not in ['JPEG', 'PNG', 'WEBP']:
+                    return Response({"error": "Unsupported format. Use JPEG, PNG, or WEBP."}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception:
+                return Response({"error": "Invalid image file."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Reset file pointer after verify()
+            image_file.seek(0)
         
         # 2. Save Initial Record
-        upload_instance = UploadedImage.objects.create(image=image_file)
+        # Try to fetch a representative product image from provided URLs when no file uploaded
+        fetched_image_url = None
+        if not image_file and product_urls:
+            for u in product_urls:
+                try:
+                    html = fetch_url_html(u)
+                    if not html:
+                        continue
+                    img = extract_main_image_from_html(html, base_url=u)
+                    if img:
+                        fetched_image_url = img
+                        break
+                except Exception:
+                    continue
+
+        upload_instance = UploadedImage.objects.create(image=image_file) if image_file else UploadedImage.objects.create()
         
         # 3. Trigger Orchestrator
         # Note: In production, this should be a Celery task.
         # For MVP, we run synchronously (User waits ~10-20s).
         try:
-            image_path = upload_instance.image.path
+            if image_file:
+                image_path = upload_instance.image.path
+            else:
+                # If we fetched an image URL from the product page, pass it to the orchestrator
+                image_path = fetched_image_url if fetched_image_url else None
             orchestrator = Orchestrator()
-            report = orchestrator.process(image_path)
+            report = orchestrator.process(image_path, product_urls=product_urls)
             
             upload_instance.analysis_report = report
             upload_instance.processed = True
@@ -201,7 +271,7 @@ class AnalyzeImageView(APIView):
             "message": "Analysis complete.",
             "data": {
                 "id": upload_instance.id,
-                "image_url": request.build_absolute_uri(upload_instance.image.url),
+                "image_url": request.build_absolute_uri(upload_instance.image.url) if image_file else fetched_image_url,
                 "created_at": upload_instance.uploaded_at,
                 "report": upload_instance.analysis_report
             }
@@ -212,3 +282,22 @@ class HealthCheckView(APIView):
     """Simple health check endpoint."""
     def get(self, request):
         return Response({"status": "ok", "version": "1.0.0"})
+
+
+class ProductChatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        message = (request.data.get('message') or '').strip()
+        report_context = request.data.get('report_context')
+        if not message:
+            return Response({"error": "Message is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if report_context is None:
+            return Response({"error": "report_context is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            agent = ProductChatAgent()
+            answer = agent.run(message=message, report_context=report_context)
+            return Response({"status": "success", "data": {"answer": answer}}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -5,8 +5,10 @@ import {
     BrainCircuit,
     GitCompare,
     ShoppingCart,
-    AlertTriangle
+    AlertTriangle,
+    MessageCircle
 } from 'lucide-react';
+import { chatAboutProduct } from '../api';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -24,6 +26,9 @@ const GlassCard = ({ children, className }) => (
 
 const ReportView = ({ data }) => {
     const [activeTab, setActiveTab] = useState('knowledge');
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatInput, setChatInput] = useState('');
+    const [isChatting, setIsChatting] = useState(false);
 
     if (!data || !data.report || !data.report.data) return null;
 
@@ -48,7 +53,38 @@ const ReportView = ({ data }) => {
         { id: 'intelligence', label: 'Intelligence', icon: BrainCircuit },
         { id: 'alternatives', label: 'Alternatives', icon: GitCompare },
         { id: 'purchase', label: 'Purchase Links', icon: ShoppingCart },
+        { id: 'chat', label: 'Chat', icon: MessageCircle },
     ];
+
+    const reportContextForChat = {
+        product_summary,
+        knowledge,
+        usage,
+        impact,
+        recommendations,
+        buy_guidance,
+        web_context: report?.web_context,
+        input_urls: report?.input_urls,
+        disclaimer: data.report?.disclaimer,
+    };
+
+    const sendChat = async () => {
+        const msg = chatInput.trim();
+        if (!msg || isChatting) return;
+
+        setChatMessages((prev) => [...prev, { role: 'user', text: msg }]);
+        setChatInput('');
+        setIsChatting(true);
+        try {
+            const res = await chatAboutProduct({ message: msg, reportContext: reportContextForChat });
+            const answer = res?.data?.answer || 'No answer returned.';
+            setChatMessages((prev) => [...prev, { role: 'assistant', text: answer }]);
+        } catch (e) {
+            setChatMessages((prev) => [...prev, { role: 'assistant', text: e.message || 'Chat failed.' }]);
+        } finally {
+            setIsChatting(false);
+        }
+    };
 
     const renderContent = () => {
         switch (activeTab) {
@@ -165,6 +201,10 @@ const ReportView = ({ data }) => {
                                                         {link.platform}
                                                     </div>
                                                     <p className="text-sm text-white/60">{link.description}</p>
+                                                    <div className="mt-2 text-xs text-white/60">
+                                                        <span className="text-white/50">Price: </span>
+                                                        <span className="text-white/80">{link.price || 'Not found'}</span>
+                                                    </div>
                                                 </div>
                                                 <ShoppingCart className="w-5 h-5 text-white/40 group-hover:text-blue-400 transition-colors" />
                                             </div>
@@ -173,6 +213,63 @@ const ReportView = ({ data }) => {
                                 </div>
                             </>
                         )}
+                    </div>
+                );
+            case 'chat':
+                return (
+                    <div className="space-y-4 animate-in fade-in duration-500">
+                        <h3 className="text-2xl font-bold mb-2 text-white">Chat</h3>
+                        <p className="text-sm text-white/60">
+                            Ask about the product, usage, risks, alternatives, or pricing.
+                        </p>
+                        <div className="rounded-xl bg-white/5 border border-white/10 p-4 h-72 overflow-y-auto space-y-3">
+                            {chatMessages.length === 0 && (
+                                <div className="text-white/50 text-sm">
+                                    Try: “Is this safe for daily use?” or “What does the price mean?”
+                                </div>
+                            )}
+                            {chatMessages.map((m, idx) => (
+                                <div
+                                    key={idx}
+                                    className={cn(
+                                        "max-w-[85%] p-3 rounded-xl border",
+                                        m.role === 'user'
+                                            ? "ml-auto bg-blue-500/10 border-blue-500/20 text-white/90"
+                                            : "mr-auto bg-black/20 border-white/10 text-white/80"
+                                    )}
+                                >
+                                    <div className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</div>
+                                </div>
+                            ))}
+                            {isChatting && (
+                                <div className="mr-auto max-w-[85%] p-3 rounded-xl bg-black/20 border border-white/10 text-white/60 text-sm">
+                                    Thinking…
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-2">
+                            <input
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') sendChat();
+                                }}
+                                placeholder="Ask a question about this product…"
+                                className="flex-1 rounded-xl bg-black/30 border border-white/10 text-white/80 placeholder:text-white/40 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-white/20"
+                                disabled={isChatting}
+                            />
+                            <button
+                                onClick={sendChat}
+                                disabled={isChatting || !chatInput.trim()}
+                                className={cn(
+                                    "px-4 py-3 rounded-xl border border-white/10 bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-all",
+                                    (isChatting || !chatInput.trim()) && "opacity-50 pointer-events-none"
+                                )}
+                            >
+                                Send
+                            </button>
+                        </div>
                     </div>
                 );
             default:
@@ -185,13 +282,22 @@ const ReportView = ({ data }) => {
             {/* Top Section: 3 Blocks */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 h-auto md:h-48">
                 {/* Photo Block */}
-                <GlassCard className="md:col-span-1 p-2 flex items-center justify-center bg-black/40">
-                    <img 
-                        src={data.image_url} 
-                        alt="Product" 
-                        className="w-full h-full object-cover rounded-xl"
-                    />
-                </GlassCard>
+                {data.image_url ? (
+                    <GlassCard className="md:col-span-1 p-2 flex items-center justify-center bg-black/40">
+                        <img 
+                            src={data.image_url} 
+                            alt="Product" 
+                            className="w-full h-full object-cover rounded-xl"
+                        />
+                    </GlassCard>
+                ) : (
+                    <GlassCard className="md:col-span-1 p-6 flex items-center justify-center bg-black/40">
+                        <div className="text-center text-white/50 text-sm">
+                            <Info className="w-8 h-8 mx-auto mb-2 text-white/30" />
+                            URL Analysis
+                        </div>
+                    </GlassCard>
+                )}
 
                 {/* Name Block */}
                 <GlassCard className="md:col-span-2 p-8 flex flex-col justify-center items-center text-center">

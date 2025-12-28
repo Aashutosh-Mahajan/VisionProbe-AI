@@ -26,7 +26,7 @@ class User(AbstractUser):
 
 class UploadedImage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='images', null=True, blank=True)
-    image = models.ImageField(upload_to='uploads/%Y/%m/%d/')
+    image = models.ImageField(upload_to='uploads/%Y/%m/%d/', null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed = models.BooleanField(default=False)
     

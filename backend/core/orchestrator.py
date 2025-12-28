@@ -10,6 +10,8 @@ from .agents import (
     BuyLinkAgent
 )
 
+from .web_extract import fetch_url_html, extract_price_from_html
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,12 +26,12 @@ class Orchestrator:
         self.recommendation_agent = RecommendationAgent()
         self.buy_agent = BuyLinkAgent()
 
-    def process(self, image_path):
+    def process(self, image_path, product_urls=None):
         """
         Main execution flow.
         Returns: Final structured JSON report.
         """
-        logger.info(f"Starting analysis for image: {image_path}")
+        logger.info(f"Starting analysis for image: {image_path}, URLs: {product_urls}")
 
         if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY is missing. Set it in environment or .env.")
@@ -41,10 +43,16 @@ class Orchestrator:
             "errors": []
         }
 
+        if product_urls:
+            report['data']['input_urls'] = list(product_urls)
+
         # Step 1: Visual Identification
         logger.info("Step 1: Running Visual Identification Agent...")
         try:
-            visual_data = self.visual_agent.run(image_path)
+            visual_data = self.visual_agent.run(image_path, product_urls=product_urls)
+            web_context = None
+            if isinstance(visual_data, dict) and '_web_context' in visual_data:
+                web_context = visual_data.pop('_web_context', None)
             logger.info(f"Visual ID result: {visual_data}")
             
             # Check for API errors in response
@@ -53,15 +61,27 @@ class Orchestrator:
             
             report['data']['product_summary'] = visual_data
             report['steps_completed'].append("visual_id")
+
+            if web_context:
+                report['data']['web_context'] = web_context
+                report['steps_completed'].append("web_context")
             
-            # FAIL FAST CHECK
+            # Confidence handling: be lenient when running URL-only (no image)
             confidence = visual_data.get('confidence', 0)
-            if confidence < 0.5:
+            has_image_input = bool(image_path)
+            if has_image_input and confidence < 0.5:
                 report['status'] = "aborted"
                 report['confidence_notice'] = "Low confidence in identification. Stopping analysis to save cost."
-                logger.warning(f"Aborting due to low confidence: {confidence}")
+                logger.warning(f"Aborting due to low confidence with image: {confidence}")
                 return report
-                
+            if (not has_image_input) and confidence < 0.35:
+                # Do not abort for URL-only; just record notice and continue with best-effort downstream
+                report['confidence_notice'] = "Low confidence from URL-only analysis; downstream steps may be less accurate."
+                logger.warning(f"Proceeding despite low confidence (URL-only): {confidence}")
+                # Boost minimal confidence to avoid downstream hard stops
+                visual_data['confidence'] = max(confidence, 0.35)
+                report['data']['product_summary'] = visual_data
+            
             product_name = visual_data.get('product_name', 'Unknown Product')
             product_category = visual_data.get('category', 'General')
             logger.info(f"Identified: {product_name} ({product_category})")
@@ -167,6 +187,22 @@ class Orchestrator:
                 }
                 buy_data = self.buy_agent.run(buy_request)
                 if "error" not in buy_data:
+                    # Best-effort: enrich each buy link with a price (scraped from the PDP)
+                    try:
+                        links = buy_data.get('buy_links') or []
+                        for link in links:
+                            url = link.get('link')
+                            if not url:
+                                continue
+                            html = fetch_url_html(url)
+                            price = extract_price_from_html(html or '') if html else None
+                            if price:
+                                link['price'] = price.get('display')
+                                link['price_amount'] = price.get('amount')
+                                link['price_currency'] = price.get('currency')
+                    except Exception as e:
+                        logger.info("Price enrichment failed: %s", e)
+
                     report['data']['buy_guidance'] = buy_data
                     report['steps_completed'].append("buy_link")
                 else:
