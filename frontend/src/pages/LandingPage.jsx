@@ -54,7 +54,7 @@ const LandingPage = () => {
               "From image to insight — understand products before you use or buy them."
             </p>
             <button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/auth?mode=signin')}
               className="px-8 py-4 text-lg font-semibold text-background bg-white hover:bg-gray-100 rounded-full transition-all transform hover:scale-105 shadow-lg"
             >
               Try Now
