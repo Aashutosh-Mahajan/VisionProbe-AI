@@ -2,228 +2,293 @@
 
 > **Visual Product Intelligence Platform** - Analyze products, assess impact, and make informed decisions with AI.
 
-**VisionProbe-AI** is an advanced multi-agent AI system designed to analyze product images and provide deep insights. From visual identification to health impact analysis and ethical purchase recommendations, VisionProbe acts as your intelligent product assistant.
+**VisionProbe-AI** is an advanced multi-agent AI system designed to analyze product images and provide deep insights. Leveraged by **OpenAI GPT-5.1**, it moves beyond simple object detection to offer health impact analysis, environmental sustainability scores, and ethical purchase recommendations.
+
+---
 
 ---
 
 ## 🏗️ System Architecture
 
-VisionProbe relies on a sophisticated **Orchestrator Pattern**, managing a pipeline of specialized AI agents.
+VisionProbe acts as a pipeline of intelligent systems functioning in unison. The architecture is built on a **Micro-Agent Orchestrator Pattern** where a central "Brain" (The Orchestrator) manages state, directs data flow, and handles failures throughout the analysis lifecycle.
 
-### Agentic Workflow
-The system processes an image through a sequential chain of 6 agents, powered by **OpenAI GPT-5.1**:
+### 🧩 High-Level Architecture Components
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Frontend
-    participant API
-    participant Orchestrator
-    participant VisualAgent as 👁️ Visual ID
-    participant ContextAgents as 🧠 Context Agents
-    participant ImpactAgent as 🌍 Impact Analysis
-    participant BuyAgent as 🛒 Buy Link
+The system architecture is composed of the following key modules connected in a secure pipeline:
 
-    User->>Frontend: Upload Image
-    Frontend->>API: POST /analyze
-    API->>Orchestrator: Process(Image)
-    
-    rect rgb(20, 20, 30)
-        note right of Orchestrator: Agent Pipeline
-        Orchestrator->>VisualAgent: Identify Product
-        VisualAgent-->>Orchestrator: {Product, Confidence}
-        
-        alt Low Confidence (<0.5)
-            Orchestrator-->>API: Abort (Low Confidence)
-        else High Confidence
-            Orchestrator->>ContextAgents: Enrich & Use Cases
-            ContextAgents-->>Orchestrator: {Knowledge, Usage}
-            
-            Orchestrator->>ImpactAgent: Assess Risk (Health/Env)
-            ImpactAgent-->>Orchestrator: {RiskLevel, Impact}
-            
-            alt Risk is High
-                Orchestrator->>Orchestrator: Skip Buy Links
-            else Risk is Low/Medium
-                Orchestrator->>BuyAgent: Find Ethical Options
-                BuyAgent-->>Orchestrator: {BuyLinks}
-            end
-        end
-    end
-    
-    Orchestrator-->>API: Final JSON Report
-    API-->>Frontend: Display Report
-```
+*   **Client Layer**:
+    *   **Frontend**: A React application (Vite) that handles user interaction and image uploads.
+    *   **Authentication**: **Neon Auth** validates user sessions before requests reach the API.
+*   **Backend Layer**:
+    *   **API**: A Django Rest Framework application that exposes endpoints for analysis.
+    *   **Database**: **Neon Postgres** stores user history, product reports, and authentication data.
+*   **AI Core (Orchestrator)**:
+    *   The central brain that directs the analysis logic. It communicates sequentially with specific agents (Visual, Knowledge, Usage, Impact, Buy Link) to build the final report.
+
+---
+
+## 🔄 End-to-End Data Flow
+
+From the moment a user uploads an image to the delivery of the intelligence report, the data flows as follows:
+
+1.  **User Initiation**: The user selects a product image on the frontend dashboard.
+2.  **Security Check**: Neon Auth validates the user's session token.
+3.  **Submission**: The image is sent to the Django Backend via a secure POST request.
+4.  **AI Orchestration**:
+    *   **Phase 1: Identification**: The **Visual Agent** scans the image. *Constraint: If confidence is < 50%, analysis aborts immediately.*
+    *   **Phase 2: Context**: If identified, **Knowledge** and **Use Case** agents enrich the data with facts and demographics.
+    *   **Phase 3: Analysis**: The **Impact Agent** calculates Health and Environmental scores.
+    *   **Phase 4: Commerce**: The **Buy Link Agent** finds purchase options. *Constraint: If Risk is High, this step is skipped to protect the user.*
+5.  **Delivery**: The Orchestrator compiles a JSON report, saves it to Neon Postgres, and returns it to the frontend for display.
+
+---
+
+## 🤖 AI Agents & Orchestration
+
+The core of VisionProbe-AI is its modular agent system. Each agent has a specific responsibility (Single Responsibility Principle) and contributes to the final report.
+
+### The Orchestrator
+*   **Role**: Conductor.
+*   **Function**: It does not "think" about the product; it thinks about the *process*. It manages the order of agent execution, passes data from one agent to the next (e.g., passing the "Product Name" from Visual Agent to the Context Agent), and handles error states.
+
+### Component Agents
 
 1.  **👁️ Visual Identification Agent**
-    *   Analyzes the uploaded image.
-    *   Identifies product name, category, and brand.
-    *   **Fail-Safe**: Aborts if confidence score is below 0.5.
+    *   **Input**: Raw Image.
+    *   **Task**: Identifies the primary object, brand detection, and text extraction (OCR).
+    *   **Output**: Structured JSON `{ "product_name": "Coke Zero", "brand": "Coca-Cola", "category": "Beverage", "confidence": 0.98 }`.
 
 2.  **🧠 Knowledge Enrichment Agent**
-    *   Enhances the identification with factual context.
-    *   Provides key features and common variants.
+    *   **Input**: Product Name & Brand.
+    *   **Task**: Retrieves factual data like ingredients (for food), specs (for tech), or material composition.
+    *   **Output**: Detailed factual summary.
 
 3.  **👥 Use Case Agent**
-    *   Determines intended user demographics.
-    *   Outlines practical usage scenarios and misuse warnings.
+    *   **Input**: Product Context.
+    *   **Task**: Identifies who the product is for (Demographics) and how it should be used.
+    *   **Output**: `{ "target_audience": ["Gamers", "Students"], "use_cases": ["Energy boost", "Late night study"] }`.
 
 4.  **🌍 Impact Analysis Agent**
-    *   Assesses **Health Impact**: Risks vs. benefits.
-    *   Assesses **Environmental Impact**: Sustainability footprint.
-    *   Calculates a composite **Risk Level** (High/Medium/Low).
+    *   **Input**: Product Ingredients/Materials.
+    *   **Task**:
+        *   **Health**: Checks for processed sugars, allergens, or carcinogens.
+        *   **Environment**: Analyzing packaging recyclability and carbon footprint.
+    *   **Output**: Risk Score (0-100) and Sustainability Rating.
 
-5.  **💡 Recommendation Agent**
-    *   Suggests safer or better alternatives if risks are detected.
-    *   Provides actionable advice for better product choices.
+5.  **🛒 Buy Link Agent**
+    *   **Input**: Product Name + Risk Level.
+    *   **Task**: Searches for purchase links.
+    *   **Logic**: If `Risk Level > High`, it suppresses purchase links to avoid promoting harmful products.
+    *   **Output**: List of URLs or "Purchase disabled due to high risk".
 
-6.  **🛒 Buy Link Agent**
-    *   Provides direct purchase links to buy the product.
-    *   **Safety Check**: If Risk Level is **High**, purchase links are disabled.
+---
+
+## 📂 Project Structure
+    
+```text
+VisionProbe-AI/
+├── backend/                # Django Backend API
+│   ├── config/             # Project Logic & Settings
+│   ├── core/               # Main Application Logic
+│   │   ├── agents/         # AI Agents & Orchestrator Logic
+│   │   ├── models.py       # Database Models
+│   │   └── views.py        # API Views
+│   ├── manage.py           # Django Entry Point
+│   ├── .env.example        # Environment Variables Template
+│   └── requirements.txt    # Python Dependencies
+├── frontend/               # React Frontend Application
+│   ├── src/
+│   │   ├── components/     # Reusable UI Components
+│   │   ├── pages/          # Application Pages
+│   │   ├── lib/            # Utilities & Helpers
+│   │   ├── api.js          # API Integration
+│   │   ├── App.jsx         # Main Component
+│   │   └── main.jsx        # Entry Point
+│   ├── package.json        # Node.js Dependencies
+│   └── vite.config.ts      # Vite Configuration
+├── docs/                   # Additional Documentation
+├── render.yaml             # Render Deployment Config
+└── README.md               # Project Documentation
+```
 
 ---
 
 ## 🛠️ Tech Stack
 
 ### Backend
-*   **Framework**: Django & Django Rest Framework (DRF)
-*   **AI Engine**: OpenAI API (GPT-5.1)
-*   **Database**: PostgreSQL (Production) / SQLite (Dev)
+*   **Framework**: [Django 5.0](https://www.djangoproject.com/) & [Django Rest Framework](https://www.django-rest-framework.org/)
+*   **Authentication**: **Neon Auth** (Serverless Postgres Authentication)
+*   **AI Engine**: [OpenAI API](https://openai.com/) (GPT-5.1 Preview)
+*   **Database**: [Neon Postgres](https://neon.tech/) (Serverless)
 *   **Image Processing**: Pillow (PIL)
-*   **Task Management**: Custom Orchestrator
+*   **Server**: Gunicorn with Whitenoise for static files
+*   **HTTP Client**: Requests
 
 ### Frontend
-*   **Framework**: React (Vite)
-*   **Styling**: TailwindCSS
-*   **Animations**: Framer Motion
+*   **Framework**: [React 19](https://react.dev/)
+*   **Build Tool**: [Vite](https://vitejs.dev/)
+*   **Styling**: [TailwindCSS](https://tailwindcss.com/)
+*   **Icons**: [Lucide React](https://lucide.dev/)
+*   **Animations**: [Framer Motion](https://www.framer.com/motion/)
+*   **HTTP Client**: Axios
 *   **Routing**: React Router DOM
+
+### Infrastructure
+*   **Hosting**: [Render](https://render.com/)
+*   **Versioning**: Git
 
 ---
 
-## 🗺️ User Flow
+## ✨ Key Features
 
-```mermaid
-graph TD
-    A[Landing Page] -->|Login/Signup| B(Auth System)
-    B -->|Success| C[Dashboard]
-    
-    C --> D{User Action}
-    D -->|Upload Image| E[Analysis Pipeline]
-    D -->|View History| F[History Page]
-    D -->|Manage Profile| G[Settings/Billing]
-    
-    E -->|Processing...| H[Live Agent Status]
-    H -->|Complete| I[Product Report]
-    I -->|Details| J[Impact & Recommendations]
-```
-
-1.  **Landing Page** (`/`): Introduction to the platform's capabilities.
-2.  **Authentication** (`/auth`): Secure access via Login or Sign Up.
-3.  **Dashboard** (`/dashboard`):
-    *   **Upload**: User uploads a product image.
-    *   **Analysis**: Watch the live agent steps (Identification -> Impact -> etc.).
-    *   **Report**: View the final structured intelligence report.
-4.  **Profile & Settings**: Manage user preferences and history.
+*   **Multi-Agent Orchestration**: Sequential processing by Visual, Knowledge, Impact, and Recommendation agents.
+*   **Fail-Safe Mechanism**: Automatically aborts analysis if product identification confidence is low.
+*   **Health & Environment Scoring**: detailed breakdown of product risks and sustainability.
+*   **Ethical Shopping**: Suggests alternatives and disables buy links for high-risk items.
+*   **Real-time Status**: Live updates on the frontend as each agent completes its task.
+*   **Responsive Dashboard**: Modern, glassmorphism-inspired UI built for all devices.
 
 ---
 
 ## 🚀 Getting Started
 
-Follow this step-by-step guide to set up the project locally.
+Follow these steps to set up VisionProbe-AI locally.
 
 ### Prerequisites
-*   **Python** 3.10+
-*   **Node.js** 18+
+
+*   **Python** 3.10 or higher
+*   **Node.js** 18 or higher
 *   **Git**
 
-### Installation
+### Backend Setup
 
-#### 1. Clone the Repository
-```bash
-git clone https://github.com/your-username/VisionProbe-AI.git
-cd VisionProbe-AI
-```
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-username/VisionProbe-AI.git
+    cd VisionProbe-AI/backend
+    ```
 
-#### 2. Backend Setup
-Navigate to the backend directory and set up the Python environment.
+2.  **Create and activate a virtual environment**:
+    ```bash
+    # Windows
+    python -m venv venv
+    venv\Scripts\activate
 
-```bash
-cd backend
-# Create virtual environment (Windows)
-python -m venv venv
-# Activate virtual environment
-venv\Scripts\activate
+    # Mac/Linux
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
 
-# Install dependencies
-pip install -r requirements.txt
-```
+3.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-**Configuration**:
-Copy the example environment file and configure your API keys.
-```bash
-cp .env.example .env
-```
-*Open `.env` and add your `OPENAI_API_KEY`.*
+4.  **Run migrations**:
+    ```bash
+    python manage.py migrate
+    ```
 
-**Database**:
-Initialize the database.
-```bash
-python manage.py migrate
-```
+### Frontend Setup
 
-#### 3. Frontend Setup
-Open a new terminal, navigate to the frontend directory, and install dependencies.
+1.  **Navigate to the frontend directory**:
+    ```bash
+    cd ../frontend
+    ```
 
-```bash
-cd frontend
-npm install
-```
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
 
-**Configuration**:
-```bash
-cp .env.example .env.local
-```
-*Ensure `VITE_API_URL` points to your backend (default: `http://localhost:8000/api/v1`).*
+---
+
+## 🔑 Environment Variables
+
+To run the project, you need to configure environment variables.
+
+### Backend (`backend/.env`)
+Create a `.env` file in the `backend/` directory:
+
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `SECRET_KEY` | Django Secret Key | `django-insecure-...` |
+| `DEBUG` | Debug Mode (True/False) | `True` |
+| `OPENAI_API_KEY` | Your OpenAI API Key | `sk-...` |
+| `DATABASE_URL` | (Optional) Postgres URL | `postgres://user:pass@host/db` |
+
+### Frontend (`frontend/.env`)
+Create a `.env` file in the `frontend/` directory:
+
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `VITE_API_URL` | Backend API URL | `http://localhost:8000/api/v1` |
 
 ---
 
 ## ⚡ Usage
 
-### Running the Servers
+### Running Locally
 
-**1. Start Backend Server**
-In your backend terminal (with venv activated):
-```bash
-python manage.py runserver
-```
-*Server running at `http://localhost:8000`*
+1.  **Start the Backend**:
+    ```bash
+    # In backend/ terminal
+    python manage.py runserver
+    ```
+    The API will be available at `http://localhost:8000`.
 
-**2. Start Frontend Server**
-In your frontend terminal:
-```bash
-npm run dev
-```
-*Client running at `http://localhost:5173`*
+2.  **Start the Frontend**:
+    ```bash
+    # In frontend/ terminal
+    npm run dev
+    ```
+    The application will launch at `http://localhost:5173`.
 
-### Using the App
-1.  Open your browser to `http://localhost:5173`.
-2.  Log in or create a new account.
-3.  Go to the **Dashboard**.
-4.  Upload a clear image of a product.
-5.  Wait for the AI Agents to generate your **Product Intelligence Report**.
+### Using the Dashboard
+1.  Navigate to `http://localhost:5173`.
+2.  Upload a product image (e.g., a soda can, a gadget, a snack).
+3.  Watch the "Agent Status" panel as analysis progresses.
+4.  Review the final report for Health, Environment, and Purchase recommendations.
+
+---
+
+## ☁️ Deployment
+
+This project is configured for easy deployment on **Render**.
+
+1.  **Push code to GitHub**.
+2.  **Create a New Web Service** on Render.
+3.  **Connect your repository**.
+4.  **Configuration**:
+    *   **Runtime**: Python 3
+    *   **Build Command**: `pip install -r backend/requirements.txt`
+    *   **Start Command**: `cd backend && gunicorn config.wsgi:application`
+5.  **Environment Variables**: Add your `OPENAI_API_KEY`, `SECRET_KEY`, and `DATABASE_URL` in the Render dashboard.
+
+_Note: For the Frontend, create a separate **Static Site** on Render with Build Command `npm run build` and Publish Directory `dist`._
 
 ---
 
 ## 📡 API Documentation
 
-The backend exposes a RESTful API.
-
-*   **Base URL**: `/api/v1/`
-*   **Endpoints**:
-    *   `POST /analysis/analyze/`: Upload image for analysis.
-    *   `GET /analysis/history/`: JSON/List of past analyses.
-    *   `POST /auth/login/`: User authentication.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/login/` | User authentication |
+| `POST` | `/api/v1/analysis/analyze/` | Upload image for multi-agent analysis |
+| `GET` | `/api/v1/analysis/history/` | specific user's analysis history |
 
 ---
 
-© 2025 VisionProbe-AI. All rights reserved.
+## 🤝 Contributing
+
+Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.
+
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
+
+---
+
+© 2025 VisionProbe-AI. Built with ❤️ and Passion.
