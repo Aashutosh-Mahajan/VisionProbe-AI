@@ -18,7 +18,12 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-local-dev-key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS_ENV = os.getenv('ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS_ENV.split(',') if h.strip()] or [
+    'localhost',
+    '127.0.0.1',
+    'visionprobe-ai.onrender.com',
+]
 
 
 # Application definition
