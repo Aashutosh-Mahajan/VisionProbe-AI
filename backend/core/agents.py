@@ -16,7 +16,7 @@ class BaseAgent:
         if not self.api_key:
             logger.warning("OPENAI_API_KEY not set. AI agents will not function.")
         self.client = OpenAI(api_key=self.api_key) if self.api_key else None
-        self.model = os.getenv('GPT_MODEL_NAME', 'gpt-4o')
+        self.model = os.getenv('GPT_MODEL_NAME', 'gpt-5.1')
 
     def _get_system_prompt(self):
         raise NotImplementedError("Subclasses must implement _get_system_prompt")

@@ -97,7 +97,7 @@ const LandingPage = () => {
               <div>
                 <h3 className="text-2xl md:text-3xl font-bold mb-6">Technical Specifications</h3>
                 <ul className="space-y-4">
-                  <SpecItem text="Multi-modal GPT-4o Vision Analysis" />
+                  <SpecItem text="Multi-modal GPT-5.1 Vision Analysis" />
                   <SpecItem text="Real-time Hazard Detection" />
                   <SpecItem text="ISO 9001 Compliance Checking" />
                   <SpecItem text="Sub-second Processing Latency" />
