@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-// Use Vite-style var first, then CRA-style for compatibility
-const API_BASE_URL =
-    import.meta.env.VITE_API_URL ||
-    import.meta.env.REACT_APP_API_URL ||
-    'http://localhost:8000/api/v1';
+// Prefer env-provided API URL; fall back to local dev
+const envApiUrl = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_API_URL;
+const API_BASE_URL = (envApiUrl || 'http://localhost:8000/api/v1').replace(/\/$/, '');
 
 const api = axios.create({
     baseURL: API_BASE_URL,
