@@ -2,7 +2,7 @@
 
 > **Visual Product Intelligence Platform** - Analyze products, assess impact, and make informed decisions with AI.
 
-**VisionProbe-AI** is an advanced multi-agent AI system designed to analyze product images and provide deep insights. Leveraged by **OpenAI GPT-5.1**, it moves beyond simple object detection to offer health impact analysis, environmental sustainability scores, and ethical purchase recommendations.
+**VisionProbe-AI** is an advanced multi-agent AI system designed to analyze product images and provide deep insights. Leveraged by **OpenAI GPT-4 Vision**, it moves beyond simple object detection to offer health impact analysis, environmental sustainability scores, and ethical purchase recommendations.
 
 ---
 
@@ -118,7 +118,7 @@ VisionProbe-AI/
 ### Backend
 *   **Framework**: [Django 5.0](https://www.djangoproject.com/) & [Django Rest Framework](https://www.django-rest-framework.org/)
 *   **Authentication**: **Neon Auth** (Serverless Postgres Authentication)
-*   **AI Engine**: [OpenAI API](https://openai.com/) (GPT-5.1 Preview)
+*   **AI Engine**: [OpenAI API](https://openai.com/) (GPT-4 Vision Preview)
 *   **Database**: [Neon Postgres](https://neon.tech/) (Serverless)
 *   **Image Processing**: Pillow (PIL)
 *   **Server**: Gunicorn with Whitenoise for static files

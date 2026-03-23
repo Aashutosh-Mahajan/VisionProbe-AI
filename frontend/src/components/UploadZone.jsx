@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Loader2, AlertCircle, ImagePlus } from 'lucide-react';
+import { ImagePlus, AlertCircle, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -44,14 +44,12 @@ const UploadZone = ({ onFileSelected, isAnalyzing, error }) => {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={cn(
-                    "relative group cursor-pointer transition-all duration-500 ease-out",
-                    "border-2 border-dashed rounded-2xl p-16",
+                    "relative group cursor-pointer transition-all duration-300 ease-in-out",
+                    "border-2 border-dashed rounded-[22px] px-8 py-14",
                     "flex flex-col items-center justify-center text-center",
-                    "bg-black/20 backdrop-blur-md shadow-2xl",
-                    isDragOver 
-                        ? "border-white/40 bg-black/30 scale-[1.01]" 
-                        : "border-white/10 hover:border-white/25 hover:bg-black/30",
-                    isAnalyzing && "pointer-events-none opacity-50"
+                    "bg-paper hover:bg-paper-2 border-border-md hover:border-green-2",
+                    isDragOver && "border-green-2 bg-green-bg scale-[1.01] shadow-[0_12px_40px_rgba(10,122,85,0.08)]",
+                    isAnalyzing && "pointer-events-none opacity-50 grayscale"
                 )}
             >
                 <input
@@ -62,43 +60,41 @@ const UploadZone = ({ onFileSelected, isAnalyzing, error }) => {
                     disabled={isAnalyzing}
                 />
 
-                <div className="relative z-0 flex flex-col items-center space-y-6">
+                <div className="relative z-0 flex flex-col items-center gap-4">
                     <div className={cn(
-                        "w-20 h-20 rounded-3xl flex items-center justify-center transition-all duration-500 shadow-xl backdrop-blur-xl border",
-                        isDragOver 
-                            ? "bg-white/20 border-white/30 text-white rotate-3 scale-110" 
-                            : "bg-white/5 border-white/10 text-white/70 group-hover:text-white group-hover:bg-white/10 group-hover:border-white/20 group-hover:scale-110"
+                        "w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm",
+                        isDragOver ? "bg-green text-white scale-110" : "bg-white text-ink-3 border border-border-md shadow-sm group-hover:text-green-2 group-hover:border-green-2 group-hover:shadow-[0_4px_16px_rgba(10,122,85,0.15)]"
                     )}>
                         {isAnalyzing ? (
-                            <Loader2 className="w-10 h-10 animate-spin" />
+                            <Loader2 className="w-8 h-8 animate-spin" />
                         ) : (
-                            <ImagePlus className="w-10 h-10" strokeWidth={1.5} />
+                            <ImagePlus className="w-8 h-8" strokeWidth={1.5} />
                         )}
                     </div>
 
-                    <div className="space-y-3 max-w-md">
-                        <h3 className="text-xl font-bold text-white tracking-tight drop-shadow-md">
-                            {selectedFileName ? "Image Selected" : "Upload Product Image"}
-                        </h3>
-                        <p className="text-white/60 text-base font-light leading-relaxed">
+                    <div className="flex flex-col gap-1.5 max-w-sm">
+                        <div className="font-serif text-[19px] font-medium text-ink">
+                            {selectedFileName ? selectedFileName : "Drag & drop your product image here"}
+                        </div>
+                        <p className="text-[13px] text-ink-3 font-light leading-relaxed">
                             {selectedFileName 
-                                ? selectedFileName
-                                : "Drag and drop your image here, or click to browse. Supports high-res JPEG & PNG."}
+                                ? "Click or drag a new file to replace"
+                                : <span>or <span className="text-green-2 font-medium">browse from your computer</span></span>}
                         </p>
                     </div>
-                    
-                    {!isAnalyzing && (
-                        <div className="px-6 py-2.5 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-white/80 group-hover:bg-white/15 group-hover:text-white group-hover:border-white/20 transition-all shadow-lg backdrop-blur-sm">
-                            {selectedFileName ? "Change File" : "Select File"}
-                        </div>
-                    )}
+
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                         <span className="text-[10px] font-medium tracking-[0.04em] uppercase text-ink-4 bg-white border border-border px-2.5 py-1 rounded-[6px]">JPEG</span>
+                         <span className="text-[10px] font-medium tracking-[0.04em] uppercase text-ink-4 bg-white border border-border px-2.5 py-1 rounded-[6px]">PNG</span>
+                         <span className="text-[10px] font-medium tracking-[0.04em] uppercase text-ink-4 bg-white border border-border px-2.5 py-1 rounded-[6px]">WEBP</span>
+                    </div>
                 </div>
             </div>
 
             {error && (
-                <div className="mt-6 flex items-center gap-3 text-rose-200 bg-rose-500/20 border border-rose-500/30 p-4 rounded-xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 shadow-lg">
-                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                    <p className="text-sm font-medium">{error}</p>
+                <div className="mt-5 flex items-start gap-3 text-rose bg-rose-bg border border-rose/30 p-4 rounded-xl animate-in fade-in slide-in-from-top-2">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <p className="text-[13px] font-medium leading-relaxed">{error}</p>
                 </div>
             )}
         </div>

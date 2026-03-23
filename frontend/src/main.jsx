@@ -8,6 +8,8 @@ import './index.css'
 import App from './App.jsx'
 import { authClient } from './lib/auth'
 
+import { ThemeProvider } from './components/ThemeProvider.jsx'
+
 function AppWrapper() {
   const navigate = useNavigate();
   
@@ -18,7 +20,9 @@ function AppWrapper() {
       Link={Link}
       redirectTo="/dashboard"
     >
-      <App />
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </NeonAuthUIProvider>
   );
 }

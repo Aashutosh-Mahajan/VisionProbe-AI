@@ -1,62 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Slate-950 based background */
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-
-    /* Slate-900 for cards */
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-
-    /* Blue-600 for primary actions */
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-
-    /* Slate-800 for secondary elements */
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 212.7 26.8% 83.9%;
-
-    --radius: 0.75rem;
+    --ink:       #0D0D0C;
+    --ink-2:     #2B2B29;
+    --ink-3:     #55534E;
+    --ink-4:     #9B9890;
+    --paper:     #F7F4EF;
+    --paper-2:   #EEE9E0;
+    --paper-3:   #E4DDD1;
+    --white:     #FFFFFF;
+    --green:     #0A7A55;
+    --green-2:   #0D9E6E;
+    --green-bg:  #E6F7F1;
+    --amber:     #C4690A;
+    --amber-bg:  #FEF3DC;
+    --rose:      #C8284E;
+    --rose-bg:   #FDEAEE;
+    --blue:      #1B4FD8;
+    --blue-bg:   #EBF0FD;
+    --border:    rgba(13,13,12,0.09);
+    --border-md: rgba(13,13,12,0.15);
+    
+    --radius:    14px;
+    --ease:      cubic-bezier(0.22, 1, 0.36, 1);
   }
-}
 
-@layer base {
+  .dark {
+    --ink:       #F7F4EF;
+    --ink-2:     #EEE9E0;
+    --ink-3:     #9B9890;
+    --ink-4:     #55534E;
+    --paper:     #0D0D0C;
+    --paper-2:   #1A1A1A;
+    --paper-3:   #2B2B29;
+    --white:     #000000;
+    --green:     #0D9E6E;
+    --green-2:   #0A7A55;
+    --green-bg:  #062A1D;
+    --amber:     #DA7B13;
+    --amber-bg:  #432303;
+    --rose:      #E44062;
+    --rose-bg:   #460D1A;
+    --blue:      #4A78FA;
+    --blue-bg:   #0C1943;
+    --border:    rgba(247,244,239,0.09);
+    --border-md: rgba(247,244,239,0.15);
+  }
+
+  html { 
+    scroll-behavior: smooth; 
+    font-size: 16px; 
+  }
+  
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  
   * {
     @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
 @layer components {
-  .card-base {
-    @apply bg-secondary/40 border border-white/5 rounded-xl backdrop-blur-sm transition-all duration-300;
+  /* Cursor */
+  .cursor {
+    @apply fixed w-2.5 h-2.5 rounded-full pointer-events-none z-[9999] bg-green-2;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.3s var(--ease), height 0.3s var(--ease), opacity 0.3s;
+    mix-blend-mode: difference;
   }
-  
-  .card-hover {
-    @apply hover:bg-secondary/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5;
+  .cursor-ring {
+    @apply fixed w-9 h-9 rounded-full pointer-events-none z-[9998] border-[1.5px] border-green-2 opacity-50;
+    transform: translate(-50%, -50%);
+    transition: left 0.12s var(--ease), top 0.12s var(--ease), width 0.3s var(--ease), height 0.3s var(--ease), opacity 0.3s;
   }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--paper); }
+  ::-webkit-scrollbar-thumb { background: var(--paper-3); border-radius: 99px; }
+
+  /* Grain overlay */
+  .grain {
+    @apply fixed inset-0 z-[1000] pointer-events-none opacity-[0.025];
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center gap-2 font-sans text-sm font-medium px-5.5 py-2.5 rounded-full border-[1.5px] border-transparent cursor-pointer no-underline transition-all duration-300 whitespace-nowrap tracking-wide;
+  }
+  .btn-ghost {
+    @apply text-ink-2 bg-transparent border-border-md hover:bg-paper-2;
+  }
+  .btn-primary {
+    @apply text-white bg-ink border-ink hover:bg-ink-2 hover:-translate-y-px shadow-sm hover:shadow-md;
+    /* In dark mode, white text on black background, hovered to dark grey bg */
+  }
+  .btn-green {
+    @apply text-white bg-green border-green hover:bg-green-2 hover:-translate-y-px hover:shadow-[0_6px_24px_rgba(10,122,85,0.28)];
+  }
+  .btn-lg {
+    @apply text-base px-8 py-3.5;
+  }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
 }
 
